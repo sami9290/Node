@@ -1,0 +1,4 @@
+-Removal of the variables which were not used 
+-login is semulated 
+-save local save the file locally not on the server, there is a problem with getting it on the server, this is a new feature of html 5, the browser should support that 
+-

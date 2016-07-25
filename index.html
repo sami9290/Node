@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html> 
+<head>
+     <meta charset="utf-8">
+     <title>sami_LaTeX_editor</title> 
+     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     
+     <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+     <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.0/jquery.min.js"></script>
+     <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>
+     <!--
+     <link rel="stylesheet" href="../bootstrap/3.3.6/css/bootstrap.min.css">
+     <script src="../jquery/1.11.3/jquery.min.js"></script>
+     <script src="../bootstrap/3.3.6/js/bootstrap.min.js"></script>
+     -->
+     <style>
+       .jumbotron {
+          background-image:url('hochschule_fulda_logo.png');
+          background-repeat: no-repeat;
+          background-position: left top;  
+       }
+     </style>
+             
+     <script src="/socket.io/socket.io.js"></script>
+     <!-- APACHI-version <script src="http://localhost:3000/socket.io/socket.io.js"> </script>   -->
+     <script>
+       var socket = io.connect('http://localhost:3000');   //  = io(); NODE.js-version
+       
+       // --- LaTeX syntax representation ---
+       var LXchars = [ '\alpha', '\beta', '\gamma', '\pi', '\phi', '\varphi' ,
+                     // 6             7             8             9    
+                       '\mathbb{A}', '\mathbb{Z}', '\mathbb{I}', '\mathbb{C}',
+                     // 10            11            12            13          
+                       '\mathbb{N}', '\mathbb{H}', '\mathbb{Q}', '\mathbb{R}', 
+                     // 14      15      16          17     18      19 
+                       '\sum', '\prod', '\coprod', '\cup', '\cap', '\sqrt', 
+                     // 20      21      22       23        24        25 
+                       '\int', '\oint', '\iint', '\iiint', '\land', '\lor'  ] ;
+       
+       // --- WEB interface commands set ---
+       var cmdListCS  = [ 'client_open', 'client_character', 'send_line', 'save_doc', 'convert_doc_pdf', 'getLXdocs',
+                          'requre_edit', 'edit_allowed', 'edit_denied', 'news', 'get_file',
+                          'client_login', 'client_logout'   ] ; 
+       var cmdListSS  = [ 'server_character', 'avail_docs', 'alert_doc_edit', 'lastLXedited', 'no_news',
+                          'deliver_doc', 'doc_saved', 'doc_converted', 'editing_granted', 'editing_rejected',
+                          'login_granted', 'login_rejected', 'logout_confirm' ] ; 
+       // --- LaTeX document syntax ---
+       var sLTXdocBegin = '\\documentclass{scrartcl} \n\\title{New-LTX-dokument} \n\\begin{document} \n' ;
+       var sLTXdocEnd   = '\\end{document}' ;
+                      
+       // --- Common Variables ---
+       // --- NEW !!! constants ---
+       var iStatusFAIL    = -1 ; var iStatusINFO = 0 ; var iStatusSUCCESS = 1 ; 
+       var sLocalStorage  = "localStored_LTXdoc" ;
+       var sLTXnoData     = "no-data" ;     // const 
+       var sUserSEPfile   = '@' ;           // const
+       var sFileNamesSEP  = '#' ;           // const
+       var sClientDataSEP = '+' ;           // const
+       var sLASTedited    = "sami@my-LaTeX-doc1" ;
+       var sCURRENT_LTXdoc= "currentUser@doc" ;
+       var myTimer=5000;
+       var iRandomClientID   = Math.floor ((Math.random () * 10000) + 1) ;
+       var iServerGivenID    = "" ;
+       var sCurrentLXContent = "" ;
+       var bDEBUG   =true; var iButton = -1 ;  
+       var bSENDch  =true;
+       var bLogAreaShown=false;
+       var bLogOUTareaShown=false;
+	   var fullstring;
+	   var curDoc="";
+       // --- SOCKET communication below [START]---
+
+       // --- should be using the array with commands here ---
+     //socket.on('no_news',        function(SocketMsg) {  console.log('no_news' + '  >>>command - oieeee' );  });
+       socket.on('server_character',    function(SocketMsg) { addCharIntoEditor     (SocketMsg);  }); // 0
+       socket.on('propg_line',     function(SocketMsg) { addLineIntoEditor     (SocketMsg);  }); // 1
+       socket.on('avail_docs',     function(SocketMsg) { displayAvalableLXdocs (SocketMsg);  }); // 2
+       socket.on('alert_doc_edit', function(SocketMsg) { permitORdenyLXdocEdit (SocketMsg);  }); // 3
+       socket.on('lastLXedited',   function(SocketMsg) { evaluateIncommingData (SocketMsg);  }); // 4
+       socket.on('no_news',        function(SocketMsg) { evaluateIncommingData (SocketMsg);  }); // 5
+       socket.on('deliver_doc',    function(SocketMsg) { loadLTX_fileIntoEditor(SocketMsg);  }); // 6
+       socket.on('doc_saved',      function(SocketMsg) { evaluateIncommingData (SocketMsg);  }); // 7
+       socket.on('doc_converted',  function(SocketMsg) { evaluateIncommingData (SocketMsg);  }); // 8
+       socket.on('login_granted',  function(SocketMsg) { processLoginAction    (SocketMsg);  }); // new
+       socket.on('logout_confirm', function(SocketMsg) { processLogoutAction   (SocketMsg);  }); // new
+       socket.on('editing_granted',  function(SocketMsg) { colaborativeEditYES (SocketMsg);  }); // new
+       socket.on('editing_rejected', function(SocketMsg) { colaborativeEditNO  (SocketMsg);  }); // new
+       
+                 
+       // --- SMO ---  
+       socket.on('server_roomlist',function(SocketMsg) { evaluateIncommingData (SocketMsg);  }); // 
+       socket.on('server_roomlist',function(SocketMsg) { evaluateIncommingData (SocketMsg);  }); // 
+       socket.on('user_online',    function(SocketMsg) { evaluateIncommingData (SocketMsg);  }); // 
+       socket.on('server_login',   function(SocketMsg) { evaluateIncommingData (SocketMsg);  }); // 
+       
+       
+       function displayActionStatus( status, message ) {
+                if (status == iStatusSUCCESS) { $('#textSuccess').text(message); $('#operateSuccess').collapse('show'); }
+                if (status == iStatusINFO)    { $('#textInfo').text(message);    $('#operateInfo').collapse('show');    }
+                if (status == iStatusFAIL)    { $('#textFailure').text(message); $('#operateFailure').collapse('show'); }
+       } //
+       
+       // --- SOCKET INCOMMING COMMAND routines below ---  
+       function addCharIntoEditor (incommingChar) { 
+                 extractDATA (incommingChar) ;
+				  update() ; 
+       } //
+       function update(){
+	   if (iServerGivenID != "") {
+	       if(syncCurrentData.substring(0, 3) == curDoc.substring(0, 3)){
+		   console.log('NewScncVal ' + syncCurrentData + ' OpendFle>>> ' + curDoc );
+	   	   if( $('#LXcontent').val().length>=sRealData.length){
+	      }
+	                else {
+                   sCurrentLXContent =   sRealData ;
+				   $("#LXcontent").val(""); 
+                   $("#LXcontent").val(sCurrentLXContent);         //  append("data");
+                } // if 
+				}
+				else {
+				}
+				}
+				//}
+			//	else {}
+	    }
+
+      
+        function addLineIntoEditor (incommingLine) {
+                extractDATA (incommingLine) ;
+				//var myVar = setInterval(myTimer, 3000);
+                console.log('client-ID ' + sClientID + ' received command >>> propg_line ' + sRealData );
+                if (iServerGivenID != "") {
+                   sCurrentLXContent = $('#LXcontent').val() + sRealData + '\n';
+                   $("#LXcontent").val(sCurrentLXContent);         //  append("data");
+                } // if
+       } //
+ 
+       // --- OBSOLETE !!! SOCKET communication below [END]---
+       function evaluateIncommingData( eventData001 ) {
+         var eventData = "" ;
+         eventData = eventData001.toString () ;
+         
+         if (bDEBUG) { 
+            console.log("received Content= " + eventData + "\n" ) ;
+            console.log("received symbols (length)= " + eventData.length + "\n" ) ;
+         } //
+       } //
+       
+       var sClientID = "" ;
+       var sRealData = "" ;
+	   var syncCurrentData="";
+       
+       function extractDATA (clientData) {
+	        var sToString = clientData.toString () ;
+            var posPLUS = clientData.indexOf('+'); 
+            var posPLUS1 = clientData.indexOf('#');             
+            if (!(posPLUS < 0)) {
+               sClientID = sToString.substring(0, posPLUS); 
+			   syncCurrentData = sToString.substring(posPLUS + 1, posPLUS1 - posPLUS - 1);
+               sRealData = sToString.substring(posPLUS1 + 1 ,sToString.length);
+            } // ifs
+       } // function 
+       
+       function checkClientID () {
+         if (bDEBUG) { console.log("myClient-ID =" + iRandomClientID + " incomming-ID =" + sClientID + "\n" ) ; }
+         return (iRandomClientID == sClientID) ;
+       } //
+       
+       function displayAvalableLXdocs (allLTXdocs) {
+                extractDATA (allLTXdocs) ;
+                console.log('client-ID ' + sClientID + ' received command >>> avail_docs ' + sRealData + '\n' );
+
+                // --- check if no-data found ---
+                var bFound1 = allLTXdocs.search (sLTXnoData) ;
+                var bFound2 = allLTXdocs.search (sLTXnoData+sFileNamesSEP) ;
+                if ( (bFound1 >= 0) || (bFound2 >= 0) )  {
+                   $("#exsLTX").append("<br/> No LaTeX files found on the server !<br/>"); 
+                   return ; 
+                } // if
+                $("#exsLTX").append('processing LaTeX files list...<br/>');   
+                var sFilesContent = "" ; var sTMP = "" ; var iCount = 0;
+                var sUser = "" ;         var sLTX = "" ;     
+                bFound1 = sRealData.indexOf (sUserSEPfile) ;
+                bFound2 = sRealData.indexOf (sFileNamesSEP) ;
+                while ( (bFound1 >= 0) && (bFound2 >= 0) && (iCount < 10) ) {
+                      sUser = sRealData.substring(0, bFound1 ); 
+                      sLTX  = sRealData.substring(bFound1+1, bFound2 ); 
+                      
+                      sFilesContent += "LaTeX documnet: " + "<span class=\"label label-default\">" ;
+                      sFilesContent += sLTX + "</span>  " + "from user:" + sUser ;  
+                      sFilesContent += "<button type=\"button\" class=\"btn btn-success btn-xs\" " ;
+                      sTMP          =  sUser + sUserSEPfile + sLTX ;
+                      sFilesContent += " onclick=\"loadLTXdocFromServer( '" + sTMP + "')\" >" ; 
+                      sFilesContent += " load file </button> <br/>\n" ;
+                      
+                      sTMP = sRealData.substring(0, bFound2+1 ); 
+                      sRealData = sRealData.replace(sTMP, "");
+                      bFound1 = sRealData.indexOf (sUserSEPfile) ;
+                      bFound2 = sRealData.indexOf (sFileNamesSEP) ;
+                      iCount++ ;
+                } ;
+                $("#exsLTX").append(sFilesContent);  
+       //    var sUserSEPfile   = '@' ;           // const
+       //    var sFileNamesSEP  = '#' ;           // const
+       //    var sClientDataSEP = '+' ;           // const
+       } //
+       function permitORdenyLXdocEdit (requreFileEdit) {
+                extractDATA (requreFileEdit) ;
+                console.log('client-ID ' + sClientID + ' received command >>> alert_doc_edit ' + sRealData + '\n' );
+                
+                if (iServerGivenID != "") {  
+                   if (iServerGivenID == sClientID)  {  
+                       
+                       var sNewStr     = sRealData ;
+                       var sInquirerID = "" ;
+                       var sFileName   = "" ;
+                       extractDATA (sNewStr) ;
+                       sInquirerID = sRealData ;
+                       sFileName   = sClientID ;
+                        
+                       var sTxt = "User: " + sInquirerID + " wants to edit the file: " + sFileName + "!\n\n" ;
+                       sTxt    += "Do you want to grant him/her a permission ?\n\n" ;
+                       var bAnswer = confirm (sTxt);
+                       if (bAnswer == true) {
+                          //  --- the Inquirer may edit the file: ALLOWED  ---
+                          sTxt = iServerGivenID + '+' + 'edit_allowed' + '+' + sInquirerID + '+' + sFileName ; 
+                          socket.emit( 'edit_allowed' , sTxt );    
+                        } else {
+                          //  --- the Inquirer may NOT edit the file: DENIED ---
+                          sTxt = iServerGivenID + '+' + 'edit_denied' + '+' + sInquirerID + '+' + sFileName ; 
+                          socket.emit( 'edit_denied' , sTxt );      
+                        } // else
+                   } // if
+                } // if
+       } //
+                
+       function offerLastLXedited () {
+       } //
+       
+       function loadLTX_fileIntoEditor (LTXfile) {
+                extractDATA (LTXfile) ;
+                console.log('client-ID ' + sClientID + ' received command >>> deliver_doc ' + sRealData + '\n' );
+                $('#LXcontent').val('').empty ();      // clear all first
+                $("#LXcontent").val(sRealData);        // load new content
+                
+                $('#exsLTX').collapse('hide');         // close te existin files area 
+                $('#newLTX').collapse('show');         // open te new LTX file area   
+                iButton=1;                             // prorammaticaly press te button
+       } //
+       
+       function processLoginAction (loginInfo) {
+                extractDATA (loginInfo) ;
+                console.log('NEW Client-ID ' + sClientID + ' received command >>> login_granted ' + sRealData );
+                // --- VERY SIMPLE DEMO LOGIN ---
+                if ( (sRealData.search("success") >= 0) || (sRealData.search("granted") >= 0) ) {
+                   iServerGivenID = sClientID ;  
+                   displayActionStatus( iStatusSUCCESS, "Login successful. Welcome to LaTeX online editor!" ) ;
+                   //$('#myLoginButton').text("log out");
+                   $("#myLoginIconButton").attr('src', 'icons/user-logged-in.png'); 
+                   {$('#operateLogin').collapse('hide'); bLogAreaShown=false; }
+                } // if 
+                else {
+                   iServerGivenID = "" ;
+                   displayActionStatus( iStatusFAIL, "You could NOT be logged in. Please try again !" ) ;
+                   {$('#operateLogin').collapse('hide'); bLogAreaShown=false; }
+                } // else
+                sClientID = "" ;
+                sRealData = "" ;
+       } //
+       
+       function processLogoutAction (logoutInfo) {
+                extractDATA (logoutInfo) ;
+                console.log('EXPIRED Client-ID ' + sClientID + ' received command >>> logout_confirm ' + sRealData );
+                
+                {$('#operateLogout').collapse('hide'); bLogOUTareaShown=false; }
+                displayActionStatus( iStatusSUCCESS, "Logout successful. See you soon back to LaTeX online editor!" ) ;
+                sClientID = "" ;
+                sRealData = "" ;
+       } //
+       
+       function colaborativeEditYES (editingINFO) { 
+                extractDATA (editingINFO) ;
+                console.log('Client-ID ' + sClientID + ' received command >>> editing_granted ' + sRealData );
+                
+                if (iServerGivenID != "") {  
+                   if (iServerGivenID == sClientID) {  
+                       displayActionStatus( iStatusSUCCESS, "The collaborative editing was allowed !" ) ;
+                       $('#LXcontent').val('').empty ();      // clear all first
+                       $("#LXcontent").val(sRealData);        // load new content
+                   } // if   
+                } // if   
+       } // 
+       function colaborativeEditNO  (editingINFO) { 
+                extractDATA (editingINFO) ;      
+                console.log('Client-ID ' + sClientID + ' received command >>> editing_rejected ' + sRealData );
+                if (iServerGivenID != "") {  
+                   if (iServerGivenID == sClientID) {  
+                      displayActionStatus( iStatusFAIL, "The collaborative editing was rejected !" ) ;
+                   } // if   
+                } // if   
+       } //
+     </script>
+     
+</head> 
+<body>
+  <!--HEADER WEB-UI [START] -->
+  <div class="jumbotron text-center">
+    <h2>Mobile Web Applications - SS2016</h2>
+    <h2>University of Fulda: LaTeX Editor by Sami</h2>
+  </div>
+  <!-- HEADER WEB-UI [END] -->
+                       
+  <div class="container">
+      
+        <!-- command buttons area -->
+        <button class="btn btn-default" type="button" data-toggle="tooltip" title="starts new LaTeX document"               onclick="newLTXdoc ()" > 
+            <img src="icons/new-document.png" alt=""/>
+            new-doc 
+        </button>
+        <button class="btn btn-default" type="button" data-toggle="tooltip" title="stores the LaTeX document on the server" onclick="saveLTXdoc ()" > 
+            <img src="icons/store-server.png" alt="save"/>
+            save   
+        </button>
+        <button class="btn btn-default" type="button" data-toggle="tooltip" title="stores the LaTeX document on the server" onclick="storeLaTeXlocal ()" > 
+            <img src="icons/store-local.png" alt=""/>
+            save local   
+        </button>
+        <button class="btn btn-default" type="button" data-toggle="tooltip" title="loads last edited LaTeX document"        onclick="loadLastLTXdoc ()" > 
+            <img src="icons/document-open-recent.png" alt=""/>
+            load-last-doc 
+        </button>
+        <button class="btn btn-default" type="button" data-toggle="tooltip" title="converts LaTeX document to PDF"          onclick="convertLTX_toPDFdoc ()" > 
+            <img src="icons/convert-to-PDF-1.png" alt=""/>
+            convert to PDF 
+        </button>
+        <button id="myLoginButton" class="btn btn-default" type="button" data-toggle="tooltip" title="tries to login on LaTeX server"          onclick="openLoginArea ()" > 
+            <img id="myLoginIconButton" src="icons/user-logged-off.png" alt=""/>
+        </button>
+        
+        <!-- notification area -->
+        <div id="operateSuccess" class="collapse">
+          <div id="showSuccess" class="alert alert-success">
+            <a href="#" class="close" data-dismiss="alert" aria-label="close">&times;</a> 
+            <p id="textSuccess"> <strong> Success!</strong> Indicates a successful or positive action. </p>
+          </div>
+        </div>
+        <div id="operateInfo" class="collapse">
+          <div id="showInfo" class="alert alert-info">
+            <a href="#" class="close" data-dismiss="alert" aria-label="close">&times;</a> 
+            <p id="textInfo"> <strong>Info!</strong> Indicates a neutral informative change or action.  </p>
+          </div>
+        </div>
+        <div id="operateFailure" class="collapse">
+          <div id="showFailure" class="alert alert-danger">
+            <a href="#" class="close" data-dismiss="alert" aria-label="close">&times;</a> 
+            <p id="textFailure"> <strong>Failure!</strong> Indicates a dangerous or potentially negative action.  </p>
+          </div>
+        </div>
+        <!-- logIN area -->
+        <div id="operateLogin" class="collapse">
+          <div id="showLogin" class="alert alert-warning">
+            <a href="#" class="close" data-dismiss="alert" aria-label="close">&times;</a> 
+            <form class="form-inline" role="form">
+              <div class="form-group">
+                <label class="sr-only" for="email">Email:</label>  
+                <input type="email" class="form-control" id="LTXemail" placeholder="Enter email" value="LTXuser@mail.com">
+              </div>
+              <div class="form-group">
+                <label class="sr-only" for="pwd">Password:</label>
+                <input type="password" class="form-control" id="LTXpwd" placeholder="Enter password" value="hs-fulda">
+              </div>
+              <button type="button" class="btn btn-default" onclick="loginToLTXserver ()">Log in</button>
+            </form>
+          </div>
+        </div>
+        <!-- logOUT area -->
+        <div id="operateLogout" class="collapse">
+          <div id="showLogout" class="alert alert-warning">
+            <a href="#" class="close" data-dismiss="alert" aria-label="close">&times;</a> 
+            <form class="form-inline" role="form">
+              <div class="form-group">
+                <label class="sr-only" for="email"> <script> </script> </label>  
+              </div>
+              <p id="myClientID"> my-Client-ID </p>
+              <button type="button" class="btn btn-default" onclick="logoutFromLTXserver ()">Log out</button>
+            </form>
+          </div>
+        </div>
+                   
+    <div class="btn-group-vertical btn-group-lg btn-block">
+      <!-- WEB-UI LaTeX Editing Area [START] -->
+               
+      <button type="button" class="btn btn-primary " data-toggle="collapse" data-target="#newLTX" onclick="buttonNEWpressed();">NEW LaTeX Document</button>
+      <div id="newLTX" class="collapse">
+        <p id="mySTATUS"> </p>
+
+        <form role="form">
+          <div class="form-group">
+            <label for="LXcontent">LateX Content:</label>
+            <textarea class="form-control" rows="5" id="LXcontent"></textarea>
+          </div>
+        </form>
+        <script>  
+          $(document).ready(function() {
+                   var sNewLTXcontent = sLTXdocBegin + "\n\n\n" + sLTXdocEnd ;
+                   $("#LXcontent").val(sNewLTXcontent);   
+                   
+                   if (typeof (Storage) !== "undefined") { 
+                      if ( localStorage.getItem(sLocalStorage) == true ) {
+                         displayActionStatus( iStatusINFO, "There is locacly stored LaTex content !" ) ; 
+                      } // if
+                   } // if
+                   console.log( "web-application page completely loaded!" );
+          });
+              
+          function buttonNEWpressed () { iButton=1; }
+          function newLTXdoc () { 
+		 // curDoc=iServerGivenID+'_NewTX@doc';
+                   $('#LXcontent').val('').empty ();  // clear te content 
+                   var sEmptyLTXdocument = sLTXdocBegin + "\n\n\n" + sLTXdocEnd ;
+                   $("#LXcontent").val(sEmptyLTXdocument);   
+                   if (iServerGivenID != "") {
+                      var sSTR1 = iServerGivenID + '+' + 'client_open' ;
+                      socket.emit( 'client_open' , sSTR1 ); 
+                   } // if
+          } //
+          
+          function saveLTXdoc () {
+                   var sSTR2 = "" ;
+                   sCURRENT_LTXdoc = "" ;
+                   if (iServerGivenID != "") {
+                      sCURRENT_LTXdoc = iServerGivenID + "@document" ;
+                      sSTR2 = iServerGivenID + '+' + sCURRENT_LTXdoc + '+' + $('#LXcontent').val() ;
+                      socket.emit( 'save_doc' , sSTR2 ); 
+                      console.log( 'sent to save content: ' + sSTR2 + '\n' ) ;
+                   } // if
+                   else {  
+                      displayActionStatus( iStatusINFO,"You are in Visitor modus! Please log-in fist to save LaTeX files!");
+                   } // else
+          } // 
+          // --- Local Storage ---  
+          function storeLaTeXlocal () { 
+                   if (typeof (Storage) !== "undefined") { 
+                      localStorage.removeItem (sLocalStorage); 
+                      var sDocContent1 = $('#LXcontent').val() ; 
+                      localStorage.setItem( sLocalStorage, sDocContent1 ); 
+                      displayActionStatus( iStatusINFO, "The current LaTex content has been localy stored !" ) ; 
+                   } // if
+                   else {
+                      displayActionStatus( iStatusFAIL, "Attention your browser does NOT support local storage!" ) ;
+                   } // else
+          } //  
+          
+          function loadLastLTXdoc () { 
+               if (iServerGivenID != "") {
+                   var sSTR3 = iServerGivenID + '+' +  sLASTedited  ;
+                   socket.emit( 'get_file' , sSTR3 );                // requres a LaTeX file 
+               } // if
+          } //
+          
+          function convertLTX_toPDFdoc () {
+               if (iServerGivenID != "") {
+                   var sSTR4 = iServerGivenID + '+' +  sCURRENT_LTXdoc  ;
+                   socket.emit( 'convert_doc_pdf' , sSTR4 ); 
+               } // if
+          } //
+          function openLoginArea () {
+                   if (iServerGivenID != "") {
+                     // --- sow my client ID --- 
+                     $('#myClientID').text(iServerGivenID);
+                     if (!bLogOUTareaShown) {$('#operateLogout').collapse('show'); bLogOUTareaShown=true; }
+                     else                   {$('#operateLogout').collapse('hide'); bLogOUTareaShown=false; }
+                   } // if
+                   else {  
+                     if (!bLogAreaShown) {$('#operateLogin').collapse('show'); bLogAreaShown=true; }
+                     else                {$('#operateLogin').collapse('hide'); bLogAreaShown=false; }
+                   } // else
+          } //
+          function loginToLTXserver () {  
+                   var sTmpEmail  = $('#LTXemail').val() ;
+                   var sTmpPswd   = $('#LTXpwd').val() ;
+                   var sSTR5 = '{ "userEmail": "' +sTmpEmail+ '", "userPassword":"' +sTmpPswd+ '" }';
+                   socket.emit( 'client_login' , JSON.parse (sSTR5) ); 
+          } //
+          
+          function logoutFromLTXserver () {
+                   if (iServerGivenID != "") {
+                      var sSTR0 = iServerGivenID + '+' + 'want to logout' ;  
+                      socket.emit( 'client_logout' , sSTR0 ); 
+                      
+                      $("#myLoginIconButton").attr('src', 'icons/user-logged-off.png'); 
+                      iServerGivenID = "" ;
+                   } // if
+          } //
+          
+          function insertSpecialChar (charIndex) { 
+                   if ( (charIndex <0) || (charIndex>LXchars.length-1) )
+                      return ;
+                   sCurrentLXContent = $('#LXcontent').val() + '\\' + LXchars [charIndex] ;
+                   $("#LXcontent").val(sCurrentLXContent);         //  append("DEBELAN.");
+                   
+                   if (iServerGivenID != "") { 
+                      //var sSTR002 = iServerGivenID + '+' + '\\' + sCurrentLXContent;  
+					   var sSTR002 = iServerGivenID + '+' + curDoc+ '#'+ '\\'  + sCurrentLXContent ;
+                      socket.emit( 'client_character' , sSTR002 );        // send a special char
+                   } // if    
+          };
+          // --- reading the keyboard ---   keydown
+          $(function () {
+		       fullstring=  $("#LXcontent").val();
+              var $diplayChar = $('#mySTATUS');
+              var strDisplay  = "" ; 
+              var strTMP1 = "" ; 
+              
+            $(document).on ('keydown', function (e) { 
+            }).on ('keypress', 
+               function (e) {
+			    fullstring=  $("#LXcontent").val();
+              strTMP1 = String.fromCharCode(e.which) ;
+              strDisplay = 'Char ' + strTMP1  + ' (key code:) ' + (e.which) ;
+               $diplayChar.val (strDisplay);
+              $("#mySTATUS").val(strDisplay);  
+               console.log('strDisplay: ' + fullstring + '\n' ) ;
+               if (iServerGivenID != "") { 
+                  strTMP001 = iServerGivenID + '+' +curDoc +'#' + fullstring ;    
+                  socket.emit( 'client_character' , strTMP001 );           // send  a char
+               } // if    
+            }).on('keyup', function (e) { });
+           });
+        </script>
+                 
+        <div class="well"> 
+          <button class="btn btn-default" type="button" data-toggle="tooltip" title="Alpha"  onclick="insertSpecialChar (0)" > <img src="symbols1/gr-alpha-klein24x24.png" width="24" alt="alpha"/>   </button>
+          <button class="btn btn-default" type="button" data-toggle="tooltip" title="Beta"   onclick="insertSpecialChar (1)" > <img src="symbols1/gr-beta-klein24x24.png"  width="24" alt="beta"/>    </button>
+          <button class="btn btn-default" type="button" data-toggle="tooltip" title="Gamma"  onclick="insertSpecialChar (2)" > <img src="symbols1/gr-gamma-klein24x24.png" width="24" alt="gamma"/>   </button>
+          <button class="btn btn-default" type="button" data-toggle="tooltip" title="Pi"     onclick="insertSpecialChar (3)" > <img src="symbols1/gr-pi-klein24x24.png"    width="24" alt="pi"/>      </button>
+          <button class="btn btn-default" type="button" data-toggle="tooltip" title="Phi"    onclick="insertSpecialChar (4)" > <img src="symbols1/gr-phi-klein24x24.png"   width="24" alt="phi"/>     </button>
+          <button class="btn btn-default" type="button" data-toggle="tooltip" title="Varphi" onclick="insertSpecialChar (5)" > <img src="symbols1/gr-varphi-klein24x24.png" width="24" alt="varphi"/> </button>
+          
+          <button class="btn btn-default" type="button" data-toggle="tooltip" title="Algebraische" onclick="insertSpecialChar (6)" > <img src="symbols1/zahlen-algebraische.png" width="24" alt="alge"/> </button>
+          <button class="btn btn-default" type="button" data-toggle="tooltip" title="Ganze"        onclick="insertSpecialChar (7)" > <img src="symbols1/zahlen-ganze.png"        width="24" alt="ganz"/> </button>
+          <button class="btn btn-default" type="button" data-toggle="tooltip" title="Irrationale"  onclick="insertSpecialChar (8)" > <img src="symbols1/zahlen-irrationale.png"  width="24" alt="irra"/> </button>
+          <button class="btn btn-default" type="button" data-toggle="tooltip" title="Komplexe"     onclick="insertSpecialChar (9)" > <img src="symbols1/zahlen-komplexe.png"     width="24" alt="kmpl"/> </button>
+          <button class="btn btn-default" type="button" data-toggle="tooltip" title="Naturliche"   onclick="insertSpecialChar (10)"> <img src="symbols1/zahlen-naturliche.png"   width="24" alt="natl"/> </button>
+          <button class="btn btn-default" type="button" data-toggle="tooltip" title="Quaternionen" onclick="insertSpecialChar (11)"> <img src="symbols1/zahlen-quaternionen.png" width="24" alt="qtr"/> </button>
+          <button class="btn btn-default" type="button" data-toggle="tooltip" title="Rationale"    onclick="insertSpecialChar (12)"> <img src="symbols1/zahlen-rationale.png"    width="24" alt="ratl"/> </button>
+          <button class="btn btn-default" type="button" data-toggle="tooltip" title="Reelle"       onclick="insertSpecialChar (13)"> <img src="symbols1/zahlen-reelle.png"       width="24" alt="reel"/> </button>
+          
+          <button class="btn btn-default" type="button" data-toggle="tooltip" title="Summe"        onclick="insertSpecialChar (14)"> <img src="symbols1/sum-png24x24.png"        width="24" alt="sum"/> </button>
+          <button class="btn btn-default" type="button" data-toggle="tooltip" title="Product"      onclick="insertSpecialChar (15)"> <img src="symbols1/product-png24x24.png"    width="24" alt="prod"/> </button>
+          <button class="btn btn-default" type="button" data-toggle="tooltip" title="Coproduct"    onclick="insertSpecialChar (16)"> <img src="symbols1/coproduct-png24x24.png"  width="24" alt="copr"/> </button>
+          <button class="btn btn-default" type="button" data-toggle="tooltip" title="Vereinigung"  onclick="insertSpecialChar (17)"> <img src="symbols1/union24x24.png"          width="24" alt="unio"/> </button>
+          <button class="btn btn-default" type="button" data-toggle="tooltip" title="Durchschnitt" onclick="insertSpecialChar (18)"> <img src="symbols1/intersection24x24.png"   width="24" alt="intr"/> </button>
+          <button class="btn btn-default" type="button" data-toggle="tooltip" title="Wurzel"       onclick="insertSpecialChar (19)"> <img src="symbols1/square24x24.png"         width="24" alt="sqre"/> </button>
+          
+          <button class="btn btn-default" type="button" data-toggle="tooltip" title="Integral zwischen a und b" onclick="insertSpecialChar (20)"> <img src="symbols1/1integral24x35.png"        width="24" alt="intg"/> </button>
+          <button class="btn btn-default" type="button" data-toggle="tooltip" title="Integral über Kurve"       onclick="insertSpecialChar (21)"> <img src="symbols1/1integral-krag4e24x35.png" width="24" alt="int1"/> </button>
+          <button class="btn btn-default" type="button" data-toggle="tooltip" title="Integral über Fläche"      onclick="insertSpecialChar (22)"> <img src="symbols1/2integral24x35.png"        width="24" alt="2int"/> </button>
+          <button class="btn btn-default" type="button" data-toggle="tooltip" title="Integral über das Volumen" onclick="insertSpecialChar (23)"> <img src="symbols1/3integral24x35.png"        width="24" alt="3int"/> </button>
+          <button class="btn btn-default" type="button" data-toggle="tooltip" title="Aussage UND"               onclick="insertSpecialChar (24)"> <img src="symbols1/4ovka-nagore24x24.png"     width="24" alt="and"/>  </button>
+          <button class="btn btn-default" type="button" data-toggle="tooltip" title="Aussage ODER"              onclick="insertSpecialChar (25)"> <img src="symbols1/4ovka-nadolu24x24.png"     width="24" alt="or"/>   </button>          
+       </div> <!-- end-well -->
+      </div>
+      <!-- WEB-UI LaTeX Editing Area [END] -->
+            
+      <!-- WEB-UI LaTeX Cheap Spacer [START] -->
+      <button type="button" class="btn btn-default disabled">         -        </button>
+      <!-- WEB-UI LaTeX Cheap Spacer [END] -->
+            
+      <!-- WEB-UI LaTeX Existing Files List [START] -->
+      <button type="button" class="btn btn-success " data-toggle="collapse" data-target="#exsLTX" onclick="buttonEXSpressed();">Open LaTeX Document</button>
+      <div id="exsLTX" class="collapse">
+        <p id="exsLTX1"> </p> 
+      </div>
+      <!-- WEB-UI LaTeX Existing Files List [END] -->
+    </div>
+    <script>
+      function buttonEXSpressed () { iButton=2; } //
+            
+      function loadLTXdocFromServer( LTXfilename) { 
+               if (iServerGivenID != "") {
+                  sLASTedited = LTXfilename ;
+                  var sSTR = iServerGivenID + '+' + curDoc + '#' + LTXfilename ; 
+				  curDoc=LTXfilename;
+                  socket.emit( 'get_file' , sSTR );                // requres a LaTeX file  
+               } //
+      //       $('#exsLTX').text("You are in Visitor modus! Please log-in fist to get list of LaTeX files!");
+      } // 
+    </script>
+    <footer class="container-fluid bg-4 text-center">
+      <p>Student Project SS2016 <a href="http://www.hs-fulda.de">www.hs-fulda.de</a></p>
+    </footer>
+  </div>
+  <!-- USER WEB-UI [END] -->
+        
+  <script>
+    // --- catching some WEB-UI events ---
+    $(document).ready( function () { 
+    //$(".btn-primary").click(function(){ $(".collapse").collapse('toggle'); });    
+    //$(".btn-success").click(function(){ $(".collapse").collapse('toggle'); });
+      
+      $(".collapse").on('shown.bs.collapse',  function(){ proceedAtShowContent (); } );
+      $(".collapse").on('hidden.bs.collapse', function(){ proceedAtHideContent (); } );
+    });
+    function proceedAtShowContent  () { 
+             console.log("entering proceedAtShowContent >>> branch " +iButton+ "\n" ) ; 
+             if (iButton==2) {
+                if (iServerGivenID != "") {
+                 var sSTR = iServerGivenID + '+' + 'get files from the folder' ; 
+                 socket.emit( 'getLXdocs' , sSTR );  // get existing LaTeX docs on the server 
+                } // if 
+                else {
+                 $('#exsLTX').text("You are in Visitor modus! Please log-in fist to get list of LaTeX files!");
+                } // else
+             } // if
+    } //
+    function proceedAtHideContent  () { 
+             console.log("entering proceedAtHideContent >>> branch " +iButton+ "\n" ) ; 
+             if (iButton==2) {
+                 $('#exsLTX').text("LaTeX files here...");
+             } // if
+    } //
+  </script>  
+  
+</body> 
+</html> 
+<!-- 21-07-2016 -->
