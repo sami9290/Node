@@ -106,9 +106,10 @@
 				  update() ; 
        } //
        function update(){
+	   console.log('NewScncVal ' + syncCurrentData + ' OpendFle>>> ' + curDoc );
 	   if (iServerGivenID != "") {
 	       if(syncCurrentData.substring(0, 3) == curDoc.substring(0, 3)){
-		   console.log('NewScncVal ' + syncCurrentData + ' OpendFle>>> ' + curDoc );
+		   
 	   	   if( $('#LXcontent').val().length>=sRealData.length){
 	      }
 	                else {
@@ -156,7 +157,7 @@
             var posPLUS1 = clientData.indexOf('#');             
             if (!(posPLUS < 0)) {
                sClientID = sToString.substring(0, posPLUS); 
-			   syncCurrentData = sToString.substring(posPLUS + 1, posPLUS1 - posPLUS - 1);
+			   syncCurrentData = sToString.substring(sToString.indexOf("+") + 1, sToString.indexOf("#"));
                sRealData = sToString.substring(posPLUS1 + 1 ,sToString.length);
             } // ifs
        } // function 

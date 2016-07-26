@@ -84,7 +84,7 @@ io.on('connection', function(socket){
                     
             if (!(posPLUS < 0)) {
                sClientID = sToString.substring(0, posPLUS); 
-			   curDoc = sToString.substring(posPLUS + 1, posPLUS1 - posPLUS - 1);
+			   curDoc = sToString.substring(sToString.indexOf("+") + 1, sToString.indexOf("#"));
                sRealData = sToString.substring(posPLUS1 + 1 ,sToString.length);
 			
             } // ifs
