@@ -46,7 +46,7 @@ var server = require ('http').createServer (app);
 app.set('views', __dirname + '/views');
 
 
-function isThisID_assigned (iSomeID) {  
+//function isThisID_assigned (iSomeID) {  
     var iPosFound = -1;
     var iAlen = clientsIDsNOW.length ;
     if (iAlen < 1) { return -1 ; }
