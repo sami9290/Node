@@ -5,8 +5,8 @@
 // 
 // --- WEB interface commands set ---
 //var cmdListCS     = [ 'client_open', 'client_character', 'send_line', 'save_doc', 'convert_doc_pdf', 'getLXdocs',
-                      'requre_edit', 'edit_allowed', 'edit_denied', 'news', 'get_file' ,
-                      'client_login', 'client_logout'   ] ; 
+//                     'requre_edit', 'edit_allowed', 'edit_denied', 'news', 'get_file' ,
+//                     'client_login', 'client_logout'   ] ; 
 var cmdListSS     = [ 'server_character', 'propg_line', 'avail_docs', 'alert_doc_edit', 'lastLXedited', 'no_news',
                       'deliver_doc', 'doc_saved', 'doc_converted', 'editing_granted', 'editing_rejected',
                       'login_granted', 'login_rejected', 'logout_confirm' ] ; 
