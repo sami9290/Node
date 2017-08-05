@@ -18,7 +18,7 @@ var sUserSEPfile   = '@' ;           // const
 var sFileNamesSEP  = '#' ;           // const
 var sClientDataSEP = '+' ;           // const
 var SERVER_URL='http://localhost/api';  //Url constant
-//var dir="dir";                          //directory of saved latex files
+var dir="dir";                          //directory of saved latex files
 ssd
 dfgdfg
 // --- Common Variables ---
