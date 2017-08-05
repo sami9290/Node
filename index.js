@@ -19,7 +19,7 @@ var sFileNamesSEP  = '#' ;           // const
 var sClientDataSEP = '+' ;           // const
 var SERVER_URL='http://localhost/api';  //Url constant
 var dir="dir";                          //directory of saved latex files
-
+ssd
 // --- Common Variables ---
 var onlineUserDetails = {user_ID:0, file_toEdit:"file", activeEntry:false };
 var clientsNOW    = [] ;
