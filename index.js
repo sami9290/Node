@@ -25,7 +25,7 @@ var clientsNOW    = [] ;
 var clientsIDsNOW = [] ;  
 var iSockCounter  = 0;
 var sList_all_LTX_files = "" ;
-//var documentToAllow = { user_ownerID:0, user_requesterID:0, requested_File:"file", editAlowamce:false };
+var documentToAllow = { user_ownerID:0, user_requesterID:0, requested_File:"file", editAlowamce:false };
 
 // --- SMO stuff ---
 var userOnline =0;                   //number of users online
