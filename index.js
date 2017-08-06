@@ -26,7 +26,7 @@ var clientsIDsNOW = [] ;
 var iSockCounter  = 0;
 var sList_all_LTX_files = "" ;
 var documentToAllow = { user_ownerID:0, user_requesterID:0, requested_File:"file", editAlowamce:false };
-
+vv
 // --- SMO stuff ---
 var userOnline =0;                   //number of users online
 var roomCounter=0;                   //room counter
